@@ -1,0 +1,6 @@
+.DS_Store
+*.pyc
+*.vsix
+.vscode-test/
+**/__pycache__/
+node_modules/

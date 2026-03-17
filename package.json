@@ -1,0 +1,66 @@
+{
+  "name": "leetcode-debugger",
+  "displayName": "LeetCode Debugger",
+  "description": "Debug the active LeetCode solution against a same-name .txt case file.",
+  "version": "0.0.1",
+  "publisher": "local",
+  "license": "MIT",
+  "keywords": [
+    "leetcode",
+    "python",
+    "debugger",
+    "competitive-programming"
+  ],
+  "engines": {
+    "vscode": "^1.91.0"
+  },
+  "categories": [
+    "Debuggers",
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onCommand:leetcodeDebugger.debugCurrentSolution",
+    "onCommand:leetcodeDebugger.openCaseFile"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "leetcodeDebugger.debugCurrentSolution",
+        "title": "LeetCode: Debug Current Solution"
+      },
+      {
+        "command": "leetcodeDebugger.openCaseFile",
+        "title": "LeetCode: Open Case File"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "leetcodeDebugger.debugCurrentSolution",
+          "group": "navigation@100",
+          "when": "resourceExtname == .py"
+        },
+        {
+          "command": "leetcodeDebugger.openCaseFile",
+          "group": "navigation@101",
+          "when": "resourceExtname == .py"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "leetcodeDebugger.debugCurrentSolution",
+          "when": "editorTextFocus"
+        },
+        {
+          "command": "leetcodeDebugger.openCaseFile",
+          "when": "editorTextFocus"
+        }
+      ]
+    }
+  },
+  "extensionDependencies": [
+    "ms-python.python",
+    "ms-python.debugpy"
+  ]
+}
