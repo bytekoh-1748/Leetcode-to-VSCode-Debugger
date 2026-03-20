@@ -1485,6 +1485,36 @@ def normalize_expected_output_text(text: str) -> str:
 
 
 # @DontTrace
+def get_solution_class_node(module: ModuleType, solution_cls: type) -> ast.ClassDef | None:
+    tree = getattr(module, "__leetcode_ast__", None)
+    if not isinstance(tree, ast.AST):
+        return None
+
+    return next(
+        (
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ClassDef) and node.name == solution_cls.__name__
+        ),
+        None,
+    )
+
+
+# @DontTrace
+def get_solution_method_node(
+    module: ModuleType, solution_cls: type, method_name: str
+) -> ast.FunctionDef | ast.AsyncFunctionDef | None:
+    solution_node = get_solution_class_node(module, solution_cls)
+    if solution_node is None:
+        return None
+
+    for child in solution_node.body:
+        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)) and child.name == method_name:
+            return child
+    return None
+
+
+# @DontTrace
 def get_unbound_method_signature(solution_cls: type, method_name: str) -> inspect.Signature:
     signature = inspect.signature(getattr(solution_cls, method_name))
     params = list(signature.parameters.values())
@@ -1513,18 +1543,7 @@ def analyze_solution_method_calls(
 ) -> tuple[dict[str, set[str]], dict[str, set[str]]]:
     called_by = {name: set() for name in candidate_names}
     calls = {name: set() for name in candidate_names}
-    tree = getattr(module, "__leetcode_ast__", None)
-    if not isinstance(tree, ast.AST):
-        return called_by, calls
-
-    solution_node = next(
-        (
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, ast.ClassDef) and node.name == solution_cls.__name__
-        ),
-        None,
-    )
+    solution_node = get_solution_class_node(module, solution_cls)
     if solution_node is None:
         return called_by, calls
 
@@ -1560,6 +1579,121 @@ def analyze_solution_method_calls(
             calls[child.name].add(callee)
 
     return called_by, calls
+
+
+# @DontTrace
+def infer_type_name_from_parameter_usage(
+    attribute_names: set[str], method_calls: set[str]
+) -> str | None:
+    if method_calls & {"getNext", "printValue"}:
+        return "ImmutableListNode"
+    if attribute_names & {"children", "neighbors", "random"}:
+        return "Node"
+    if attribute_names & {"left", "right"}:
+        if "next" in attribute_names:
+            return "Node"
+        return "TreeNode"
+    if "next" in attribute_names:
+        return "ListNode"
+    return None
+
+
+# @DontTrace
+def infer_method_parameter_type_names(
+    module: ModuleType, solution_cls: type, method_name: str
+) -> dict[str, str]:
+    method_node = get_solution_method_node(module, solution_cls, method_name)
+    if method_node is None:
+        return {}
+
+    param_names = [
+        arg.arg for arg in method_node.args.args if arg.arg not in {"self", "cls"}
+    ]
+    if not param_names:
+        return {}
+
+    attributes_by_param = {name: set() for name in param_names}
+    method_calls_by_param = {name: set() for name in param_names}
+
+    class ParameterUsageVisitor(ast.NodeVisitor):
+        def visit_Attribute(self, node: ast.Attribute) -> None:
+            if isinstance(node.value, ast.Name) and node.value.id in attributes_by_param:
+                attributes_by_param[node.value.id].add(node.attr)
+            self.generic_visit(node)
+
+        def visit_Call(self, node: ast.Call) -> None:
+            func = node.func
+            if (
+                isinstance(func, ast.Attribute)
+                and isinstance(func.value, ast.Name)
+                and func.value.id in method_calls_by_param
+            ):
+                method_calls_by_param[func.value.id].add(func.attr)
+            self.generic_visit(node)
+
+    ParameterUsageVisitor().visit(method_node)
+
+    inferred: dict[str, str] = {}
+    for param_name in param_names:
+        type_name = infer_type_name_from_parameter_usage(
+            attributes_by_param[param_name],
+            method_calls_by_param[param_name],
+        )
+        if type_name is not None:
+            inferred[param_name] = type_name
+    return inferred
+
+
+# @DontTrace
+def infer_untyped_helper_type_name(
+    value: Any, param_name: str | None = None, usage_type_name: str | None = None
+) -> str | None:
+    if usage_type_name is not None:
+        return usage_type_name
+
+    normalized_name = (param_name or "").replace("_", "").lower()
+
+    if normalized_name in {"head", "l1", "l2", "listnode", "linkedlist"}:
+        if looks_like_random_list_input(value):
+            return "Node"
+        if value is None or isinstance(value, list):
+            return "ListNode"
+
+    if normalized_name in {"root", "tree", "treenode"}:
+        if looks_like_nary_tree_input(value):
+            return "Node"
+        if isinstance(value, list) and any(item is None for item in value):
+            return "TreeNode"
+
+    if normalized_name in {"node", "graph"}:
+        if (
+            looks_like_graph_input(value)
+            or looks_like_nary_tree_input(value)
+            or looks_like_random_list_input(value)
+        ):
+            return "Node"
+
+    return None
+
+
+# @DontTrace
+def resolve_annotation(
+    value: Any,
+    annotation: Any,
+    param_name: str | None = None,
+    inferred_type_name: str | None = None,
+) -> Any:
+    if annotation not in (inspect.Signature.empty, Any):
+        return annotation
+
+    helper_type_name = infer_untyped_helper_type_name(
+        value,
+        param_name=param_name,
+        usage_type_name=inferred_type_name,
+    )
+    if helper_type_name in LEETCODE_GLOBALS:
+        return LEETCODE_GLOBALS[helper_type_name]
+    return annotation
 
 
 # @DontTrace
@@ -1684,12 +1818,18 @@ def invoke_solution(
     param_names = [param.name for param in params]
     raw_args, raw_kwargs = parse_case_block(case_text, param_names)
     type_hints = get_type_hints(method, globalns=module.__dict__, localns=module.__dict__)
+    inferred_param_type_names = infer_method_parameter_type_names(module, solution_cls, method_name)
 
     if raw_kwargs:
         converted_kwargs = {
             name: convert_value(
                 value,
-                type_hints.get(name, inspect.Signature.empty),
+                resolve_annotation(
+                    value,
+                    type_hints.get(name, inspect.Signature.empty),
+                    param_name=name,
+                    inferred_type_name=inferred_param_type_names.get(name),
+                ),
                 param_name=name,
             )
             for name, value in raw_kwargs.items()
@@ -1705,7 +1845,12 @@ def invoke_solution(
     converted_args = [
         convert_value(
             value,
-            type_hints.get(param.name, inspect.Signature.empty),
+            resolve_annotation(
+                value,
+                type_hints.get(param.name, inspect.Signature.empty),
+                param_name=param.name,
+                inferred_type_name=inferred_param_type_names.get(param.name),
+            ),
             param_name=param.name,
         )
         for param, value in zip(params, raw_args)

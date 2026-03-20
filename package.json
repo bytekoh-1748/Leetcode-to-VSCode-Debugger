@@ -1,15 +1,40 @@
 {
   "name": "leetcode-debugger",
   "displayName": "LeetCode Debugger",
-  "description": "Debug the active LeetCode solution against a same-name .txt case file.",
-  "version": "0.0.1",
-  "publisher": "local",
+  "description": "Debug LeetCode Python solutions in VS Code with same-name case files and helper-type support.",
+  "version": "0.1.1",
+  "publisher": "YoojinKoh",
   "license": "MIT",
+  "pricing": "Free",
+  "icon": "media/extension_icon.png",
+  "homepage": "https://github.com/bytekoh-1748/Leetcode-to-VSCode-Debugger#readme",
+  "bugs": {
+    "url": "https://github.com/bytekoh-1748/Leetcode-to-VSCode-Debugger/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bytekoh-1748/Leetcode-to-VSCode-Debugger.git"
+  },
+  "galleryBanner": {
+    "color": "#0b1220"
+  },
+  "files": [
+    "extension.js",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "SUPPORT.md",
+    "media/**",
+    "python/bootstrap_debug_session.py",
+    "python/leetcode_debug_runtime.py"
+  ],
   "keywords": [
     "leetcode",
     "python",
     "debugger",
-    "competitive-programming"
+    "competitive-programming",
+    "debugpy",
+    "interview"
   ],
   "engines": {
     "vscode": "^1.91.0"
@@ -18,6 +43,12 @@
     "Debuggers",
     "Programming Languages"
   ],
+  "scripts": {
+    "test:runtime": "python3 -m unittest python/test_leetcode_debug_runtime.py",
+    "package": "npx @vscode/vsce package",
+    "publish:patch": "npx @vscode/vsce publish patch",
+    "publish:minor": "npx @vscode/vsce publish minor"
+  },
   "activationEvents": [
     "onCommand:leetcodeDebugger.debugCurrentSolution",
     "onCommand:leetcodeDebugger.openCaseFile"

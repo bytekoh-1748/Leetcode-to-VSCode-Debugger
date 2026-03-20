@@ -61,6 +61,39 @@ class Solution:
         self.assertEqual(exit_code, 0)
         self.assertIn("Case 1: PASS", output_text)
 
+    def test_untyped_tree_node_is_inferred_from_usage(self) -> None:
+        source = """
+class Solution:
+    def maxDepth(self, root):
+        if not root:
+            return 0
+        return 1 + max(self.maxDepth(root.left), self.maxDepth(root.right))
+"""
+        case_text = "Input: root = [3,9,20,null,null,15,7]\nOutput: 3\n"
+
+        exit_code, output_text = self.run_solution(source, case_text)
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("Case 1: PASS", output_text)
+
+    def test_untyped_list_node_is_inferred_from_usage(self) -> None:
+        source = """
+class Solution:
+    def middleNode(self, head):
+        slow = head
+        fast = head
+        while fast and fast.next:
+            slow = slow.next
+            fast = fast.next.next
+        return slow
+"""
+        case_text = "Input: head = [1,2,3,4,5]\nOutput: [3,4,5]\n"
+
+        exit_code, output_text = self.run_solution(source, case_text)
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("Case 1: PASS", output_text)
+
 
 if __name__ == "__main__":
     unittest.main()
