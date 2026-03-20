@@ -143,6 +143,6 @@ Some judge interface types accept compact case-file values too:
 
 - Your solution does not need `import leetcode` or a custom `run()` wrapper.
 - LeetCode helper inputs are converted automatically from compact case-file literals.
-- The extension looks for a `Solution` class and runs its single public method.
-- If your `Solution` class has multiple public methods, the runtime cannot pick one automatically.
+- The extension looks for a `Solution` class and auto-detects the LeetCode entry method.
+- Helper methods inside `Solution` are supported, and named `Input:` blocks can still run even if you renamed your method parameters.
 - Hidden global APIs such as `isBadVersion`, `knows`, or `read4` are not auto-mocked yet.

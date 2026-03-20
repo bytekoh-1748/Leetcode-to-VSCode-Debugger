@@ -683,6 +683,32 @@ def extract_case_sections(case_text: str) -> tuple[str, str | None]:
 
 
 # @DontTrace
+def extract_case_argument_names(case_text: str) -> list[str] | None:
+    input_text, _ = extract_case_sections(case_text)
+    lines = [line.strip() for line in input_text.splitlines() if line.strip()]
+    if not lines:
+        return None
+
+    assignments: list[tuple[str, str]] = []
+
+    if len(lines) == 1:
+        for part in split_top_level_commas(lines[0]):
+            assignment = split_named_assignment(part)
+            if assignment is None:
+                return None
+            assignments.append(assignment)
+        return [name for name, _ in assignments]
+
+    for line in lines:
+        assignment = split_named_assignment(line)
+        if assignment is None:
+            return None
+        assignments.append(assignment)
+
+    return [name for name, _ in assignments]
+
+
+# @DontTrace
 def parse_literal(text: str) -> Any:
     stripped = text.strip()
     if not stripped:
@@ -713,12 +739,15 @@ def parse_case_block(case_text: str, param_names: list[str]) -> tuple[list[Any],
         assignment_parts = split_top_level_commas(lines[0])
         assignments = [split_named_assignment(part) for part in assignment_parts]
         if assignment_parts and all(item is not None for item in assignments):
-            kwargs = {
-                name: parse_literal(raw_value)
+            ordered_values = [
+                (name, parse_literal(raw_value))
                 for name, raw_value in assignments
                 if name is not None
-            }
-            return [], kwargs
+            ]
+            assignment_names = [name for name, _ in ordered_values]
+            if param_names and set(assignment_names).issubset(set(param_names)):
+                return [], dict(ordered_values)
+            return [value for _, value in ordered_values], {}
 
         try:
             value = parse_literal(lines[0])
@@ -743,11 +772,13 @@ def parse_case_block(case_text: str, param_names: list[str]) -> tuple[list[Any],
         return [value], {}
 
     if all("=" in line and line.split("=", 1)[0].strip().isidentifier() for line in lines):
-        kwargs: dict[str, Any] = {}
+        ordered_values: list[tuple[str, Any]] = []
         for line in lines:
             name, raw_value = line.split("=", 1)
-            kwargs[name.strip()] = parse_literal(raw_value)
-        return [], kwargs
+            ordered_values.append((name.strip(), parse_literal(raw_value)))
+        if param_names and set(name for name, _ in ordered_values).issubset(set(param_names)):
+            return [], dict(ordered_values)
+        return [value for _, value in ordered_values], {}
 
     return [parse_literal(line) for line in lines], {}
 
@@ -1454,10 +1485,154 @@ def normalize_expected_output_text(text: str) -> str:
 
 
 # @DontTrace
+def get_unbound_method_signature(solution_cls: type, method_name: str) -> inspect.Signature:
+    signature = inspect.signature(getattr(solution_cls, method_name))
+    params = list(signature.parameters.values())
+    if params and params[0].name in {"self", "cls"}:
+        params = params[1:]
+    return signature.replace(parameters=params)
+
+
+# @DontTrace
+def is_argument_shape_compatible(
+    signature: inspect.Signature, raw_args: list[Any], raw_kwargs: dict[str, Any]
+) -> bool:
+    try:
+        signature.bind(
+            *([object()] * len(raw_args)),
+            **{name: object() for name in raw_kwargs},
+        )
+    except TypeError:
+        return False
+    return True
+
+
+# @DontTrace
+def analyze_solution_method_calls(
+    module: ModuleType, solution_cls: type, candidate_names: list[str]
+) -> tuple[dict[str, set[str]], dict[str, set[str]]]:
+    called_by = {name: set() for name in candidate_names}
+    calls = {name: set() for name in candidate_names}
+    tree = getattr(module, "__leetcode_ast__", None)
+    if not isinstance(tree, ast.AST):
+        return called_by, calls
+
+    solution_node = next(
+        (
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ClassDef) and node.name == solution_cls.__name__
+        ),
+        None,
+    )
+    if solution_node is None:
+        return called_by, calls
+
+    candidate_set = set(candidate_names)
+
+    class MethodCallVisitor(ast.NodeVisitor):
+        def __init__(self) -> None:
+            self.calls: set[str] = set()
+
+        def visit_Call(self, node: ast.Call) -> None:
+            func = node.func
+            if (
+                isinstance(func, ast.Attribute)
+                and isinstance(func.value, ast.Name)
+                and func.value.id in {"self", solution_cls.__name__}
+                and func.attr in candidate_set
+            ):
+                self.calls.add(func.attr)
+            self.generic_visit(node)
+
+    for child in solution_node.body:
+        if not isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if child.name not in candidate_set:
+            continue
+
+        visitor = MethodCallVisitor()
+        visitor.visit(child)
+        for callee in visitor.calls:
+            if callee == child.name:
+                continue
+            called_by[callee].add(child.name)
+            calls[child.name].add(callee)
+
+    return called_by, calls
+
+
+# @DontTrace
+def infer_solution_method(
+    module: ModuleType, solution_cls: type, candidate_names: list[str], raw_input: str | None
+) -> str | None:
+    case_texts = split_cases(raw_input) if raw_input else []
+    called_by, calls = analyze_solution_method_calls(module, solution_cls, candidate_names)
+    scored_candidates: list[tuple[str, tuple[int, ...]]] = []
+
+    for method_name in candidate_names:
+        signature = get_unbound_method_signature(solution_cls, method_name)
+        param_names = list(signature.parameters.keys())
+        compatible_cases = 0
+        exact_name_cases = 0
+        ordered_name_matches = 0
+        unordered_name_matches = 0
+        exact_arity_cases = 0
+
+        for case_text in case_texts:
+            named_input_names = extract_case_argument_names(case_text)
+            if named_input_names is not None:
+                if named_input_names == param_names:
+                    exact_name_cases += 1
+                ordered_name_matches += sum(
+                    left == right for left, right in zip(named_input_names, param_names)
+                )
+                unordered_name_matches += len(set(named_input_names) & set(param_names))
+
+            try:
+                raw_args, raw_kwargs = parse_case_block(case_text, param_names)
+            except (SyntaxError, ValueError):
+                continue
+
+            if not is_argument_shape_compatible(signature, raw_args, raw_kwargs):
+                continue
+
+            compatible_cases += 1
+            if raw_kwargs and set(raw_kwargs.keys()) == set(param_names):
+                exact_arity_cases += 1
+            elif raw_args and len(raw_args) == len(param_names):
+                exact_arity_cases += 1
+
+        inbound_count = len(called_by[method_name])
+        score = (
+            int(bool(case_texts) and compatible_cases == len(case_texts)),
+            compatible_cases,
+            exact_name_cases,
+            ordered_name_matches,
+            unordered_name_matches,
+            exact_arity_cases,
+            int(inbound_count == 0),
+            -inbound_count,
+            len(calls[method_name]),
+        )
+        scored_candidates.append((method_name, score))
+
+    if not scored_candidates:
+        return None
+
+    best_score = max(score for _, score in scored_candidates)
+    winners = [name for name, score in scored_candidates if score == best_score]
+    if len(winners) == 1:
+        return winners[0]
+    return None
+
+
+# @DontTrace
 def load_solution_module(solution_path: Path) -> ModuleType:
     source_text = solution_path.read_text(encoding="utf-8")
     module = ModuleType("leetcode_solution")
     module.__file__ = str(solution_path)
+    module.__leetcode_ast__ = ast.parse(source_text, filename=str(solution_path))
     for name, value in LEETCODE_GLOBALS.items():
         setattr(module, name, value)
     sys.modules["leetcode"] = create_compat_leetcode_module()
@@ -1467,7 +1642,9 @@ def load_solution_module(solution_path: Path) -> ModuleType:
 
 
 # @DontTrace
-def find_solution_method(module: ModuleType, method_name: str | None) -> tuple[type, str]:
+def find_solution_method(
+    module: ModuleType, method_name: str | None, raw_input: str | None = None
+) -> tuple[type, str]:
     solution_cls = getattr(module, "Solution", None)
     if solution_cls is None or not inspect.isclass(solution_cls):
         raise RuntimeError("Solution class was not found.")
@@ -1485,8 +1662,14 @@ def find_solution_method(module: ModuleType, method_name: str | None) -> tuple[t
     if not candidates:
         raise RuntimeError("No public method was found in Solution.")
     if len(candidates) > 1:
+        inferred_method = infer_solution_method(module, solution_cls, candidates, raw_input)
+        if inferred_method is not None:
+            return solution_cls, inferred_method
         joined = ", ".join(candidates)
-        raise RuntimeError(f"Multiple public methods found ({joined}). Use --method.")
+        raise RuntimeError(
+            f"Multiple public methods found ({joined}), and the runtime could not infer "
+            "which one matches the case file. Use --method."
+        )
     return solution_cls, candidates[0]
 
 
@@ -1534,7 +1717,7 @@ def invoke_solution(
 def evaluate_module_cases(
     module: ModuleType, method_name: str | None, raw_input: str
 ) -> tuple[int, str]:
-    solution_cls, method_name = find_solution_method(module, method_name)
+    solution_cls, method_name = find_solution_method(module, method_name, raw_input)
     outputs = []
     validations = []
     mismatch_found = False
