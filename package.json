@@ -2,7 +2,7 @@
   "name": "leetcode-debugger",
   "displayName": "LeetCode Debugger",
   "description": "Debug LeetCode Python solutions in VS Code with same-name case files and helper-type support.",
-  "version": "0.1.1",
+  "version": "0.1.3",
   "publisher": "YoojinKoh",
   "license": "MIT",
   "pricing": "Free",
@@ -24,7 +24,7 @@
     "CHANGELOG.md",
     "LICENSE",
     "SUPPORT.md",
-    "media/**",
+    "media/extension_icon.png",
     "python/bootstrap_debug_session.py",
     "python/leetcode_debug_runtime.py"
   ],

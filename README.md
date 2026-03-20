@@ -2,11 +2,17 @@
 
 Debug the active LeetCode Python solution in VS Code with a same-name `.txt` case file.
 
-This repo is meant to be run in VS Code's Extension Development Host. You do not need to install or package anything. Open this repo in VS Code, press `F5`, and a new popup window will open with the extension loaded temporarily.
+Use it to paste LeetCode Python solutions into VS Code, open a matching case file, set breakpoints, and debug with the normal Python debugger.
 
 ## Demo
 
-- [YouTube demo video](https://youtu.be/1TlWg2j0BHs?si=dUUn1lnR8m786qIE)
+- [YouTube demo video](https://youtu.be/6nRcja5qnYQ?si=fq9mFnLnVvhRpKbY)
+
+## Install
+
+1. Install `LeetCode Debugger` from the VS Code Marketplace.
+2. Make sure the VS Code `Python` and `Python Debugger` extensions are installed.
+3. Open the folder where your LeetCode Python files live.
 
 ## Features
 
@@ -14,6 +20,7 @@ This repo is meant to be run in VS Code's Extension Development Host. You do not
 - Open or create a same-name `.txt` case file next to the solution.
 - Read inputs from the case file and print PASS or FAIL results in the terminal.
 - Support common LeetCode helper types and judge wrappers such as `ListNode`, `TreeNode`, `Node`, `NestedInteger`, `Employee`, `Interval`, `Point`, `ArrayReader`, `BinaryMatrix`, and `MountainArray`.
+- Infer common LeetCode helper inputs even when pasted code is missing some type annotations such as `TreeNode` or `ListNode`.
 - Run multiple test cases from one file by separating cases with `---`.
 
 ## Requirements
@@ -22,22 +29,14 @@ This repo is meant to be run in VS Code's Extension Development Host. You do not
 - Python 3 available as `python3`
 - The VS Code `Python` and `Python Debugger` extensions
 
-The popup window will prompt for the Python extensions if they are missing.
+## Quick Start
 
-## Quick Start on macOS
-
-1. Open this repo in VS Code.
-2. Press `F5`.
-3. A new Extension Development Host window will open.
-4. In that popup window, open the folder where your LeetCode Python files live.
-5. Open a Python solution file such as `add_two_numbers.py`.
-6. Run `LeetCode: Open Case File` from the Command Palette, or click the editor title button.
-7. Fill in the generated `add_two_numbers.txt` file.
-8. Set breakpoints in your Python solution.
-9. Run `LeetCode: Debug Current Solution`.
-10. Step through the code in the debugger and check the integrated terminal output.
-
-You can close the popup whenever you're done. Nothing gets permanently installed into your main VS Code setup.
+1. Open a Python solution file such as `add_two_numbers.py`.
+2. Run `LeetCode: Open Case File` from the Command Palette, or click the editor title button.
+3. Fill in the generated `add_two_numbers.txt` file.
+4. Set breakpoints in your Python solution.
+5. Run `LeetCode: Debug Current Solution`.
+6. Step through the code in the debugger and check the integrated terminal output.
 
 ## Case File Format
 
@@ -145,4 +144,15 @@ Some judge interface types accept compact case-file values too:
 - LeetCode helper inputs are converted automatically from compact case-file literals.
 - The extension looks for a `Solution` class and auto-detects the LeetCode entry method.
 - Helper methods inside `Solution` are supported, and named `Input:` blocks can still run even if you renamed your method parameters.
+- Common pasted solutions can still work even if `TreeNode` or `ListNode` type annotations were removed.
 - Hidden global APIs such as `isBadVersion`, `knows`, or `read4` are not auto-mocked yet.
+
+## Development
+
+If you want to run this repository locally in VS Code's Extension Development Host:
+
+1. Open this repo in VS Code.
+2. Press `F5`.
+3. A new Extension Development Host window will open with the extension loaded temporarily.
+
+This is only for local development. Marketplace users can install the extension normally and use the quick-start flow above.

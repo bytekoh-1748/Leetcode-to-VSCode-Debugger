@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.1.3
+
+- Updated the Marketplace demo video link and refreshed the release package.
+
+## 0.1.2
+
+- Rewrote the README for Marketplace users so installation and usage steps match the published extension workflow.
+
 ## 0.1.1
 
 - Added fallback helper-type inference for untyped LeetCode parameters like `root` and `head`.
