@@ -94,6 +94,51 @@ class Solution:
         self.assertEqual(exit_code, 0)
         self.assertIn("Case 1: PASS", output_text)
 
+    def test_multiline_named_grid_input_is_supported(self) -> None:
+        source = """
+from typing import List
+
+class Solution:
+    def numIslands(self, grid: List[List[str]]) -> int:
+        rows = len(grid)
+        cols = len(grid[0])
+        visited = [[False] * cols for _ in range(rows)]
+        islands = 0
+
+        for row in range(rows):
+            for col in range(cols):
+                if grid[row][col] != "1" or visited[row][col]:
+                    continue
+                islands += 1
+                stack = [(row, col)]
+                while stack:
+                    current_row, current_col = stack.pop()
+                    if visited[current_row][current_col]:
+                        continue
+                    visited[current_row][current_col] = True
+                    for delta_row, delta_col in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                        next_row = current_row + delta_row
+                        next_col = current_col + delta_col
+                        if 0 <= next_row < rows and 0 <= next_col < cols:
+                            if grid[next_row][next_col] == "1" and not visited[next_row][next_col]:
+                                stack.append((next_row, next_col))
+        return islands
+"""
+        case_text = """Input:
+grid = [
+  ["1","1","0","0","0"],
+  ["1","1","0","0","0"],
+  ["0","0","1","0","0"],
+  ["0","0","0","1","1"]
+]
+Output: 3
+"""
+
+        exit_code, output_text = self.run_solution(source, case_text)
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("Case 1: PASS", output_text)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.1.5
+
+- Added Python 3.x compatibility fallbacks for runtime imports used by the VS Code debugger.
+- Documented that the extension runs on Python 3.9 or newer.
+- Added a clear startup error when the selected VS Code Python interpreter is older than Python 3.9.
+
+## 0.1.4
+
+- Added support for multiline named `Input:` values such as `grid = [...]` in case files.
+
+
 ## 0.1.3
 
 - Updated the Marketplace demo video link and refreshed the release package.

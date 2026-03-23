@@ -26,8 +26,16 @@ Use it to paste LeetCode Python solutions into VS Code, open a matching case fil
 ## Requirements
 
 - Visual Studio Code
-- Python 3 available as `python3`
+- Python 3.9 or newer
 - The VS Code `Python` and `Python Debugger` extensions
+
+## Python Version
+
+The extension runs with the Python interpreter selected in VS Code for the debug session.
+
+- Supported: Python 3.9+
+- Verified in this repository: Python 3.9, 3.13, and 3.14
+- If the selected interpreter is older than Python 3.9, the debug session exits with a version error before running your solution
 
 ## Quick Start
 

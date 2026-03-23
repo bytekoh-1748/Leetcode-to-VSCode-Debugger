@@ -9,10 +9,30 @@ import json
 import re
 import sys
 from collections import Counter, defaultdict, deque
-from functools import cache, lru_cache
+from functools import lru_cache
 from pathlib import Path
-from types import ModuleType, UnionType
-from typing import Any, DefaultDict, Deque, Dict, List, Optional, Set, Tuple, Union, get_args, get_origin, get_type_hints
+from types import ModuleType
+from typing import Any, DefaultDict, Deque, Dict, List, Optional, Set, Tuple, Union, get_type_hints
+
+try:
+    from functools import cache
+except ImportError:
+    def cache(user_function):
+        return lru_cache(maxsize=None)(user_function)
+
+try:
+    from types import UnionType
+except ImportError:
+    UnionType = None
+
+try:
+    from typing import get_args, get_origin
+except ImportError:
+    def get_origin(annotation: Any) -> Any:
+        return getattr(annotation, "__origin__", None)
+
+    def get_args(annotation: Any) -> tuple[Any, ...]:
+        return getattr(annotation, "__args__", ())
 
 
 class ListNode:
@@ -625,6 +645,77 @@ def split_named_assignment(text: str) -> tuple[str, str] | None:
 
 
 # @DontTrace
+def split_named_assignments_block(text: str) -> list[tuple[str, str]] | None:
+    stripped = text.strip()
+    if not stripped:
+        return None
+
+    assignments: list[tuple[str, str]] = []
+    index = 0
+    length = len(stripped)
+
+    while index < length:
+        while index < length and stripped[index] in " \t\r\n,":
+            index += 1
+        if index >= length:
+            break
+
+        match = re.match(r"([A-Za-z_][A-Za-z0-9_]*)\s*=", stripped[index:])
+        if match is None:
+            return None
+
+        name = match.group(1)
+        index += match.end()
+        value_start = index
+        depth = 0
+        quote = ""
+        escaped = False
+
+        while index < length:
+            char = stripped[index]
+
+            if quote:
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == quote:
+                    quote = ""
+                index += 1
+                continue
+
+            if char in ("'", '"'):
+                quote = char
+                index += 1
+                continue
+
+            if char in "([{":
+                depth += 1
+                index += 1
+                continue
+
+            if char in ")]}":
+                depth = max(0, depth - 1)
+                index += 1
+                continue
+
+            if depth == 0 and char in ",\n":
+                next_match = re.match(r"\s*([A-Za-z_][A-Za-z0-9_]*)\s*=", stripped[index + 1 :])
+                if next_match is not None:
+                    break
+
+            index += 1
+
+        value = stripped[value_start:index].strip()
+        if not value:
+            return None
+
+        assignments.append((name, value))
+
+    return assignments or None
+
+
+# @DontTrace
 def extract_case_sections(case_text: str) -> tuple[str, str | None]:
     lines = [line.strip() for line in case_text.splitlines() if line.strip()]
     if not lines:
@@ -685,25 +776,12 @@ def extract_case_sections(case_text: str) -> tuple[str, str | None]:
 # @DontTrace
 def extract_case_argument_names(case_text: str) -> list[str] | None:
     input_text, _ = extract_case_sections(case_text)
-    lines = [line.strip() for line in input_text.splitlines() if line.strip()]
-    if not lines:
+    if not input_text.strip():
         return None
 
-    assignments: list[tuple[str, str]] = []
-
-    if len(lines) == 1:
-        for part in split_top_level_commas(lines[0]):
-            assignment = split_named_assignment(part)
-            if assignment is None:
-                return None
-            assignments.append(assignment)
-        return [name for name, _ in assignments]
-
-    for line in lines:
-        assignment = split_named_assignment(line)
-        if assignment is None:
-            return None
-        assignments.append(assignment)
+    assignments = split_named_assignments_block(input_text)
+    if assignments is None:
+        return None
 
     return [name for name, _ in assignments]
 
@@ -734,6 +812,14 @@ def parse_case_block(case_text: str, param_names: list[str]) -> tuple[list[Any],
     lines = [line.strip() for line in input_text.splitlines() if line.strip()]
     if not lines:
         raise ValueError("Empty test case")
+
+    named_assignments = split_named_assignments_block(input_text)
+    if named_assignments is not None:
+        ordered_values = [(name, parse_literal(raw_value)) for name, raw_value in named_assignments]
+        assignment_names = [name for name, _ in ordered_values]
+        if param_names and set(assignment_names).issubset(set(param_names)):
+            return [], dict(ordered_values)
+        return [value for _, value in ordered_values], {}
 
     if len(lines) == 1:
         assignment_parts = split_top_level_commas(lines[0])
@@ -786,7 +872,7 @@ def parse_case_block(case_text: str, param_names: list[str]) -> tuple[list[Any],
 # @DontTrace
 def is_optional(annotation: Any) -> bool:
     origin = get_origin(annotation)
-    return origin in (Union, UnionType) and type(None) in get_args(annotation)
+    return (origin is Union or (UnionType is not None and origin is UnionType)) and type(None) in get_args(annotation)
 
 
 # @DontTrace
