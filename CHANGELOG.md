@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.1.6
+
+- Added a per-case timeout that stops suspected infinite loops and reports them in the debug output.
+- Documented the infinite-loop timeout behavior and configuration in the README.
+
 ## 0.1.5
 
 - Added Python 3.x compatibility fallbacks for runtime imports used by the VS Code debugger.

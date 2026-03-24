@@ -1,8 +1,13 @@
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
-from python.leetcode_debug_runtime import evaluate_module_cases, load_solution_module
+from python.leetcode_debug_runtime import (
+    CASE_TIMEOUT_ENV_VAR,
+    evaluate_module_cases,
+    load_solution_module,
+)
 
 
 class LeetCodeDebugRuntimeTests(unittest.TestCase):
@@ -138,6 +143,22 @@ Output: 3
 
         self.assertEqual(exit_code, 0)
         self.assertIn("Case 1: PASS", output_text)
+
+    def test_infinite_loop_is_stopped_and_reported(self) -> None:
+        source = """
+class Solution:
+    def endless(self, n: int) -> int:
+        while True:
+            n += 1
+"""
+        case_text = "Input: n = 1\n"
+
+        with patch.dict("os.environ", {CASE_TIMEOUT_ENV_VAR: "0.05"}):
+            exit_code, output_text = self.run_solution(source, case_text)
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("Case 1: INFINITE LOOP", output_text)
+        self.assertIn("stopped after", output_text)
 
 
 if __name__ == "__main__":

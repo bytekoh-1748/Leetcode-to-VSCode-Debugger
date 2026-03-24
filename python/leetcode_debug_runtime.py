@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import argparse
+import _thread
 import ast
+from contextlib import contextmanager
 import inspect
 import json
+import os
 import re
+import signal
 import sys
+import threading
 from collections import Counter, defaultdict, deque
 from functools import lru_cache
 from pathlib import Path
@@ -33,6 +38,20 @@ except ImportError:
 
     def get_args(annotation: Any) -> tuple[Any, ...]:
         return getattr(annotation, "__args__", ())
+
+
+DEFAULT_CASE_TIMEOUT_SECONDS = 5.0
+CASE_TIMEOUT_ENV_VAR = "LEETCODE_DEBUG_TIMEOUT_SECONDS"
+
+
+class CaseTimeoutError(RuntimeError):
+    def __init__(self, seconds: float, timer_label: str):
+        self.seconds = seconds
+        self.timer_label = timer_label
+        super().__init__(
+            f"stopped after {seconds:g}s of {timer_label}. "
+            "This usually means the solution is stuck in an infinite loop."
+        )
 
 
 class ListNode:
@@ -544,6 +563,74 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--case-file", required=True, help="Path to the same-name .txt case file.")
     parser.add_argument("--method", help="Optional Solution method name.")
     return parser.parse_args()
+
+
+# @DontTrace
+def get_case_timeout_seconds() -> float | None:
+    raw_value = os.environ.get(CASE_TIMEOUT_ENV_VAR)
+    if raw_value is None or not raw_value.strip():
+        return DEFAULT_CASE_TIMEOUT_SECONDS
+
+    try:
+        seconds = float(raw_value)
+    except ValueError as exc:
+        raise RuntimeError(
+            f"{CASE_TIMEOUT_ENV_VAR} must be a positive number, got: {raw_value!r}"
+        ) from exc
+
+    if seconds <= 0:
+        return None
+
+    return seconds
+
+
+# @DontTrace
+@contextmanager
+def enforce_case_timeout(seconds: float | None):
+    if seconds is None:
+        yield
+        return
+
+    if (
+        threading.current_thread() is threading.main_thread()
+        and hasattr(signal, "setitimer")
+        and hasattr(signal, "ITIMER_VIRTUAL")
+        and hasattr(signal, "SIGVTALRM")
+    ):
+        previous_timer = signal.getitimer(signal.ITIMER_VIRTUAL)
+        previous_handler = signal.getsignal(signal.SIGVTALRM)
+
+        def handle_timeout(_signum, _frame) -> None:
+            raise CaseTimeoutError(seconds, "CPU time")
+
+        signal.signal(signal.SIGVTALRM, handle_timeout)
+        signal.setitimer(signal.ITIMER_VIRTUAL, seconds)
+        try:
+            yield
+        finally:
+            signal.setitimer(signal.ITIMER_VIRTUAL, 0)
+            signal.signal(signal.SIGVTALRM, previous_handler)
+            if previous_timer != (0.0, 0.0):
+                signal.setitimer(signal.ITIMER_VIRTUAL, *previous_timer)
+        return
+
+    timed_out = threading.Event()
+
+    def interrupt_main_thread() -> None:
+        timed_out.set()
+        _thread.interrupt_main()
+
+    timer = threading.Timer(seconds, interrupt_main_thread)
+    timer.daemon = True
+    timer.start()
+    try:
+        yield
+    except KeyboardInterrupt as exc:
+        if timed_out.is_set():
+            raise CaseTimeoutError(seconds, "elapsed time") from exc
+        raise
+    finally:
+        timer.cancel()
 
 
 # @DontTrace
@@ -1949,12 +2036,26 @@ def evaluate_module_cases(
     module: ModuleType, method_name: str | None, raw_input: str
 ) -> tuple[int, str]:
     solution_cls, method_name = find_solution_method(module, method_name, raw_input)
+    timeout_seconds = get_case_timeout_seconds()
     outputs = []
     validations = []
-    mismatch_found = False
+    failure_found = False
 
     for index, case_text in enumerate(split_cases(raw_input), start=1):
-        result = invoke_solution(module, solution_cls, method_name, case_text)
+        try:
+            with enforce_case_timeout(timeout_seconds):
+                result = invoke_solution(module, solution_cls, method_name, case_text)
+        except CaseTimeoutError as exc:
+            failure_found = True
+            message = "\n".join(
+                [
+                    f"Case {index}: INFINITE LOOP",
+                    str(exc),
+                ]
+            )
+            validations.append(message)
+            continue
+
         actual_text = format_output_text(result)
         _, expected_text = extract_case_sections(case_text)
 
@@ -1965,7 +2066,7 @@ def evaluate_module_cases(
         normalized_expected = normalize_expected_output_text(expected_text)
         is_match = actual_text == normalized_expected
         if not is_match:
-            mismatch_found = True
+            failure_found = True
 
         validations.append(
             "\n".join(
@@ -1977,10 +2078,13 @@ def evaluate_module_cases(
             )
         )
 
+    sections = []
+    if outputs:
+        sections.append("\n".join(outputs))
     if validations:
-        return (1 if mismatch_found else 0), "\n\n".join(validations)
+        sections.append("\n\n".join(validations))
 
-    return 0, "\n".join(outputs)
+    return (1 if failure_found else 0), "\n\n".join(sections)
 
 
 # @DontTrace
