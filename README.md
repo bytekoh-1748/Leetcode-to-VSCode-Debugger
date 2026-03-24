@@ -20,6 +20,7 @@ Use it to paste LeetCode Python solutions into VS Code, open a matching case fil
 - Open or create a same-name `.txt` case file next to the solution.
 - Read inputs from the case file and print PASS or FAIL results in the terminal.
 - Stop cases that appear stuck in an infinite loop and report them in the terminal.
+- Support common in-place LeetCode problems that mutate inputs instead of returning a value.
 - Support common LeetCode helper types and judge wrappers such as `ListNode`, `TreeNode`, `Node`, `NestedInteger`, `Employee`, `Interval`, `Point`, `ArrayReader`, `BinaryMatrix`, and `MountainArray`.
 - Infer common LeetCode helper inputs even when pasted code is missing some type annotations such as `TreeNode` or `ListNode`.
 - Run multiple test cases from one file by separating cases with `---`.
@@ -111,6 +112,8 @@ If you omit `Output:`, the extension prints the actual result only.
 
 If a case exceeds the default timeout, the runtime stops it and prints `Case N: INFINITE LOOP`.
 The default limit is 5 seconds of CPU time per case. You can override it with the `LEETCODE_DEBUG_TIMEOUT_SECONDS` environment variable, or disable it by setting that variable to `0`.
+
+For in-place problems that return `None`, the runtime compares the mutated primary input instead. This covers common LeetCode patterns such as `solve(board)`, `rotate(matrix)`, and `merge(nums1, m, nums2, n)`.
 
 ## Supported LeetCode Types
 

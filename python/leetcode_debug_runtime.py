@@ -42,6 +42,21 @@ except ImportError:
 
 DEFAULT_CASE_TIMEOUT_SECONDS = 5.0
 CASE_TIMEOUT_ENV_VAR = "LEETCODE_DEBUG_TIMEOUT_SECONDS"
+IN_PLACE_OUTPUT_HINTS = {
+    "board",
+    "matrix",
+    "grid",
+    "nums1",
+    "nums",
+    "arr",
+    "array",
+    "chars",
+    "image",
+    "intervals",
+    "heights",
+    "colors",
+    "letters",
+}
 
 
 class CaseTimeoutError(RuntimeError):
@@ -1870,6 +1885,74 @@ def resolve_annotation(
 
 
 # @DontTrace
+def is_in_place_output_candidate(value: Any) -> bool:
+    return (
+        isinstance(value, (list, dict, set, deque))
+        or is_named_instance(value, "ListNode")
+        or is_named_instance(value, "TreeNode")
+        or is_named_instance(value, "Node")
+        or is_named_instance(value, "NestedInteger")
+        or is_named_instance(value, "Employee")
+        or is_named_instance(value, "Interval")
+        or is_named_instance(value, "Point")
+        or is_named_instance(value, "ImmutableListNode")
+        or isinstance(value, (BinaryMatrix, MountainArray, ArrayReader, HtmlParser, Robot, GridMaster, Sea))
+    )
+
+
+# @DontTrace
+def select_in_place_output(
+    param_names: list[str],
+    converted_args: list[Any] | None = None,
+    converted_kwargs: dict[str, Any] | None = None,
+) -> Any:
+    ordered_values: list[tuple[str, Any]] = []
+
+    if converted_kwargs:
+        ordered_values = [
+            (name, converted_kwargs[name]) for name in param_names if name in converted_kwargs
+        ]
+    elif converted_args:
+        ordered_values = list(zip(param_names, converted_args))
+
+    candidates = [
+        (name, value)
+        for name, value in ordered_values
+        if is_in_place_output_candidate(value)
+    ]
+    if not candidates:
+        return None
+
+    for name, value in candidates:
+        normalized_name = name.replace("_", "").lower()
+        if normalized_name in IN_PLACE_OUTPUT_HINTS:
+            return value
+
+    return candidates[0][1]
+
+
+# @DontTrace
+def finalize_output_value(
+    return_value: Any,
+    param_names: list[str],
+    converted_args: list[Any] | None = None,
+    converted_kwargs: dict[str, Any] | None = None,
+) -> Any:
+    if return_value is not None:
+        return return_value
+
+    in_place_output = select_in_place_output(
+        param_names,
+        converted_args=converted_args,
+        converted_kwargs=converted_kwargs,
+    )
+    if in_place_output is not None:
+        return in_place_output
+
+    return return_value
+
+
+# @DontTrace
 def infer_solution_method(
     module: ModuleType, solution_cls: type, candidate_names: list[str], raw_input: str | None
 ) -> str | None:
@@ -2007,7 +2090,12 @@ def invoke_solution(
             )
             for name, value in raw_kwargs.items()
         }
-        return method(**converted_kwargs)
+        return_value = method(**converted_kwargs)
+        return finalize_output_value(
+            return_value,
+            param_names,
+            converted_kwargs=converted_kwargs,
+        )
 
     if len(raw_args) != len(params):
         expected = ", ".join(param_names)
@@ -2028,7 +2116,12 @@ def invoke_solution(
         )
         for param, value in zip(params, raw_args)
     ]
-    return method(*converted_args)
+    return_value = method(*converted_args)
+    return finalize_output_value(
+        return_value,
+        param_names,
+        converted_args=converted_args,
+    )
 
 
 # @DontTrace

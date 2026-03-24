@@ -160,6 +160,59 @@ class Solution:
         self.assertIn("Case 1: INFINITE LOOP", output_text)
         self.assertIn("stopped after", output_text)
 
+    def test_in_place_board_problem_uses_mutated_input_as_output(self) -> None:
+        source = """
+from typing import List
+
+class Solution:
+    def solve(self, board: List[List[str]]) -> None:
+        if not board or not board[0]:
+            return
+
+        rows, cols = len(board), len(board[0])
+
+        def mark_safe(start_row: int, start_col: int) -> None:
+            stack = [(start_row, start_col)]
+            while stack:
+                row, col = stack.pop()
+                if not (0 <= row < rows and 0 <= col < cols):
+                    continue
+                if board[row][col] != "O":
+                    continue
+                board[row][col] = "S"
+                stack.extend(
+                    [
+                        (row + 1, col),
+                        (row - 1, col),
+                        (row, col + 1),
+                        (row, col - 1),
+                    ]
+                )
+
+        for row in range(rows):
+            mark_safe(row, 0)
+            mark_safe(row, cols - 1)
+
+        for col in range(cols):
+            mark_safe(0, col)
+            mark_safe(rows - 1, col)
+
+        for row in range(rows):
+            for col in range(cols):
+                if board[row][col] == "O":
+                    board[row][col] = "X"
+                elif board[row][col] == "S":
+                    board[row][col] = "O"
+"""
+        case_text = """Input: board = [["X","X","X","X"],["X","O","O","X"],["X","X","O","X"],["X","O","X","X"]]
+Output: [["X","X","X","X"],["X","X","X","X"],["X","X","X","X"],["X","O","X","X"]]
+"""
+
+        exit_code, output_text = self.run_solution(source, case_text)
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("Case 1: PASS", output_text)
+
 
 if __name__ == "__main__":
     unittest.main()

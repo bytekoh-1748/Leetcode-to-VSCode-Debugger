@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.1.7
+
+- Added support for common in-place LeetCode problems that mutate inputs and return `None`.
+- Documented in-place output handling for problems such as `solve(board)` and `rotate(matrix)`.
+
 ## 0.1.6
 
 - Added a per-case timeout that stops suspected infinite loops and reports them in the debug output.
