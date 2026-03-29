@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.1.8
+
+- Added a contributed `LeetCode Debugger` launch configuration so the extension appears in VS Code's debug configuration picker.
+- Made `F5` work through a dedicated `leetcodeDebugger` debug type instead of only through the command palette command.
+- Documented the `F5` workflow for selecting and reusing `LeetCode: Debug Current Solution`.
+
 ## 0.1.7
 
 - Added support for common in-place LeetCode problems that mutate inputs and return `None`.

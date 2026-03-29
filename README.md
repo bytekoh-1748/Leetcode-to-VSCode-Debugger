@@ -45,8 +45,10 @@ The extension runs with the Python interpreter selected in VS Code for the debug
 2. Run `LeetCode: Open Case File` from the Command Palette, or click the editor title button.
 3. Fill in the generated `add_two_numbers.txt` file.
 4. Set breakpoints in your Python solution.
-5. Run `LeetCode: Debug Current Solution`.
+5. Press `F5` and choose `LeetCode Debugger` / `LeetCode: Debug Current Solution`, or run `LeetCode: Debug Current Solution` from the Command Palette.
 6. Step through the code in the debugger and check the integrated terminal output.
+
+After you select `LeetCode: Debug Current Solution` once, VS Code can reuse that debug configuration on the next `F5`.
 
 ## Case File Format
 

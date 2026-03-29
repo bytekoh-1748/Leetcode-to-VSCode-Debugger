@@ -2,7 +2,7 @@
   "name": "leetcode-debugger",
   "displayName": "LeetCode Debugger",
   "description": "Debug LeetCode Python solutions in VS Code with same-name case files and helper-type support.",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "publisher": "YoojinKoh",
   "license": "MIT",
   "pricing": "Free",
@@ -50,11 +50,89 @@
     "publish:minor": "npx @vscode/vsce publish minor"
   },
   "activationEvents": [
+    "onDebug",
+    "onDebugDynamicConfigurations",
     "onCommand:leetcodeDebugger.debugCurrentSolution",
     "onCommand:leetcodeDebugger.openCaseFile"
   ],
   "main": "./extension.js",
   "contributes": {
+    "debuggers": [
+      {
+        "type": "leetcodeDebugger",
+        "label": "LeetCode Debugger",
+        "configurationAttributes": {
+          "launch": {
+            "required": [
+              "type",
+              "request",
+              "name"
+            ],
+            "additionalProperties": true,
+            "properties": {
+              "type": {
+                "enum": [
+                  "leetcodeDebugger"
+                ],
+                "description": "Launch the LeetCode Debugger."
+              },
+              "request": {
+                "enum": [
+                  "launch"
+                ],
+                "description": "Launch the active LeetCode Python solution."
+              },
+              "name": {
+                "type": "string",
+                "default": "LeetCode: Debug Current Solution",
+                "description": "The name shown in the debug configuration picker."
+              },
+              "solution": {
+                "type": "string",
+                "description": "Optional path to the Python solution file. Defaults to the active editor."
+              },
+              "caseFile": {
+                "type": "string",
+                "description": "Optional path to the same-name .txt case file. Defaults to the solution's sibling .txt file."
+              },
+              "cwd": {
+                "type": "string",
+                "description": "Optional working directory. Defaults to the solution file directory."
+              },
+              "console": {
+                "type": "string",
+                "enum": [
+                  "integratedTerminal",
+                  "internalConsole",
+                  "externalTerminal"
+                ],
+                "default": "integratedTerminal",
+                "description": "Where to launch the debug session."
+              },
+              "justMyCode": {
+                "type": "boolean",
+                "default": true
+              },
+              "stopOnEntry": {
+                "type": "boolean",
+                "default": false
+              },
+              "subProcess": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "name": "LeetCode: Debug Current Solution",
+            "type": "leetcodeDebugger",
+            "request": "launch"
+          }
+        ]
+      }
+    ],
     "commands": [
       {
         "command": "leetcodeDebugger.debugCurrentSolution",
